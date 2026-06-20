@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nyaya — Precedent Search & Retrieval Engine</title>
+<style>
+  /* ---------- Design tokens ----------
+     Subject: Indian judiciary / legal records.
+     Palette: ink on aged paper, oxblood accent (law-report binding red), brass detail.
+     Type: 'Spectral' (transitional serif, statutory authority) for display,
+           'Inter' for UI/body, 'IBM Plex Mono' for citations & case numbers. */
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --paper:#f3efe6;
+    --paper-2:#ece6d8;
+    --card:#fbf9f4;
+    --ink:#1c1a16;
+    --ink-soft:#4a463d;
+    --ink-faint:#807a6c;
+    --line:#d8d0bf;
+    --line-strong:#bcb29c;
+    --oxblood:#7a1f24;
+    --oxblood-soft:#9a3b40;
+    --brass:#a07e2e;
+    --green:#3f6b4f;
+    --shadow:0 1px 0 rgba(28,26,22,.04), 0 8px 24px -16px rgba(28,26,22,.35);
+    --radius:3px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #f7f3ea 0%, var(--paper) 55%) fixed;
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* ---------- Masthead ---------- */
+  header.masthead{
+    border-bottom:2px solid var(--ink);
+    background:linear-gradient(180deg,#f6f2e9,transparent);
+  }
+  .masthead .wrap{padding-top:26px;padding-bottom:18px}
+  .crest{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .crest .mark{
+    font-family:'Spectral',serif;font-weight:700;font-size:34px;letter-spacing:.5px;
+    color:var(--ink);line-height:1;
+  }
+  .crest .mark em{color:var(--oxblood);font-style:normal}
+  .crest .sub{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2.5px;
+    text-transform:uppercase;color:var(--ink-faint);padding-bottom:3px;
+  }
+  .tagline{
+    margin-top:8px;color:var(--ink-soft);font-size:13.5px;max-width:60ch;
+  }
+  .tagline b{color:var(--ink)}
+
+  /* ---------- Search console ---------- */
+  .console{margin-top:22px;margin-bottom:8px}
+  .modes{display:flex;gap:0;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden;width:fit-content;background:var(--card)}
+  .modes button{
+    appearance:none;border:0;background:transparent;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;
+    padding:9px 16px;color:var(--ink-soft);border-right:1px solid var(--line);
+    transition:background .15s,color .15s;
+  }
+  .modes button:last-child{border-right:0}
+  .modes button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+  .modes button:hover:not([aria-selected="true"]){background:var(--paper-2)}
+
+  .mode-hint{margin:10px 2px 14px;font-size:12.5px;color:var(--ink-faint);min-height:1.2em}
+  .mode-hint code{font-family:'IBM Plex Mono',monospace;color:var(--oxblood-soft);font-size:12px}
+
+  .searchrow{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+  .field{flex:1 1 420px;position:relative;display:flex}
+  .field input{
+    width:100%;font-size:15px;font-family:'Inter',sans-serif;color:var(--ink);
+    padding:13px 14px 13px 40px;background:var(--card);
+    border:1px solid var(--line-strong);border-radius:var(--radius);outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .field input:focus{border-color:var(--oxblood);box-shadow:0 0 0 3px rgba(122,31,36,.12)}
+  .field .ic{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink-faint);pointer-events:none}
+  select.area{
+    font-family:'Inter',sans-serif;font-size:14px;color:var(--ink);
+    padding:0 34px 0 13px;background:var(--card)
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23807a6c' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 12px center;
+    border:1px solid var(--line-strong);border-radius:var(--radius);outline:none;cursor:pointer;
+    appearance:none;-webkit-appearance:none;min-width:190px;
+  }
+  select.area:focus{border-color:var(--oxblood)}
+  button.go{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+    background:var(--oxblood);color:#f6efe2;border:1px solid var(--oxblood);border-radius:var(--radius);
+    padding:0 22px;cursor:pointer;transition:background .15s;
+  }
+  button.go:hover{background:#651a1f}
+
+  /* ---------- Results ---------- */
+  .meta-line{
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
+    margin:24px 0 6px;padding-bottom:8px;border-bottom:1px solid var(--line);
+  }
+  .meta-line h2{
+    font-family:'Spectral',serif;font-weight:600;font-size:17px;margin:0;color:var(--ink);
+  }
+  .meta-line .count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-faint)}
+
+  .results{display:flex;flex-direction:column;gap:0}
+  .case{
+    border:1px solid transparent;border-bottom:1px solid var(--line);
+    padding:18px 4px;display:grid;grid-template-columns:1fr auto;gap:6px 18px;
+    transition:background .12s;
+  }
+  .case:hover{background:var(--card)}
+  .case .head{grid-column:1;display:flex;flex-direction:column;gap:3px}
+  .case .title{
+    font-family:'Spectral',serif;font-weight:600;font-size:18px;line-height:1.25;color:var(--ink);cursor:pointer;
+    text-decoration:none;display:inline-block;
+  }
+  .case .title:hover{color:var(--oxblood);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+  .case .rowlinks{display:flex;gap:16px;align-items:center;margin-top:5px;flex-wrap:wrap}
+  .case .viewfull{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.3px;
+    color:var(--oxblood-soft);text-decoration:none;border-bottom:1px solid var(--line-strong);padding-bottom:1px;
+  }
+  .case .viewfull:hover{color:var(--oxblood);border-color:var(--oxblood)}
+  .case .details{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.3px;
+    color:var(--ink-faint);text-decoration:none;cursor:pointer;border-bottom:1px dotted var(--line-strong);padding-bottom:1px;
+  }
+  .case .details:hover{color:var(--ink-soft)}
+  .case .cite{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-faint);
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  }
+  .case .cite .court{color:var(--ink-soft)}
+  .tag{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.5px;
+    text-transform:uppercase;padding:2px 7px;border:1px solid var(--line-strong);border-radius:100px;
+    color:var(--ink-soft);background:var(--paper);white-space:nowrap;
+  }
+  .case .held{grid-column:1;color:var(--ink-soft);font-size:13.5px;margin-top:4px;max-width:72ch}
+  .case .held b{color:var(--ink)}
+  .case .aside{grid-column:2;grid-row:1 / span 3;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:130px}
+  .score{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);
+    display:flex;flex-direction:column;align-items:flex-end;gap:3px;
+  }
+  .scorebar{width:120px;height:5px;background:var(--paper-2);border:1px solid var(--line);border-radius:100px;overflow:hidden}
+  .scorebar i{display:block;height:100%;background:linear-gradient(90deg,var(--brass),var(--oxblood))}
+  .why{font-size:11px;color:var(--ink-faint);max-width:130px;text-align:right;line-height:1.35}
+  .why span{color:var(--oxblood-soft)}
+  button.similar{
+    appearance:none;border:1px solid var(--line-strong);background:var(--card);cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;
+    color:var(--ink-soft);padding:6px 10px;border-radius:var(--radius);transition:all .12s;white-space:nowrap;
+  }
+  button.similar:hover{border-color:var(--oxblood);color:var(--oxblood)}
+
+  .empty{padding:40px 4px;color:var(--ink-faint);font-size:14px}
+  .empty.notfound{padding:30px 4px;max-width:62ch}
+  .empty.notfound b{color:var(--ink);font-size:16px;font-family:'Spectral',serif}
+  .empty.notfound p{margin:10px 0;color:var(--ink-soft);font-size:14px;line-height:1.55}
+  .empty.notfound .hint2{font-size:12.5px;color:var(--ink-faint)}
+  .empty.notfound .iklink{
+    display:inline-block;margin:6px 0 4px;background:var(--oxblood);color:#f6efe2;text-decoration:none;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.5px;padding:11px 18px;border-radius:var(--radius);
+  }
+  .empty.notfound .iklink:hover{background:#651a1f}
+  .empty b{color:var(--ink-soft)}
+
+  .anchor-note{
+    background:var(--card);border:1px solid var(--line-strong);border-left:3px solid var(--oxblood);
+    border-radius:var(--radius);padding:12px 16px;margin:18px 0 2px;font-size:13.5px;color:var(--ink-soft);
+  }
+  .anchor-note b{color:var(--ink);font-family:'Spectral',serif}
+  .anchor-note .clear{float:right;cursor:pointer;color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .anchor-note .clear:hover{color:var(--oxblood)}
+  button.backbtn{
+    appearance:none;cursor:pointer;background:var(--ink);color:var(--paper);
+    border:1px solid var(--ink);border-radius:var(--radius);
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    padding:9px 16px;transition:background .15s;
+  }
+  button.backbtn:hover{background:var(--oxblood);border-color:var(--oxblood)}
+
+  /* ---------- Detail drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(28,26,22,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100%;width:min(520px,92vw);background:var(--paper);
+    border-left:2px solid var(--ink);transform:translateX(100%);transition:transform .24s cubic-bezier(.2,.7,.2,1);
+    z-index:50;overflow-y:auto;box-shadow:-20px 0 60px -30px rgba(0,0,0,.5);
+  }
+  .drawer.open{transform:none}
+  .drawer .inner{padding:26px 26px 60px}
+  .drawer .close{float:right;border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--ink-faint);line-height:1}
+  .drawer h3{font-family:'Spectral',serif;font-size:23px;font-weight:600;margin:0 0 6px;padding-right:30px;line-height:1.2}
+  .drawer .dcite{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-faint);margin-bottom:16px}
+  .drawer dl{display:grid;grid-template-columns:max-content 1fr;gap:7px 16px;margin:0 0 18px;font-size:13.5px}
+  .drawer dt{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint);padding-top:2px}
+  .drawer dd{margin:0;color:var(--ink)}
+  .drawer h4{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--oxblood-soft);margin:20px 0 7px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .drawer p.body{font-size:14px;color:var(--ink-soft);line-height:1.6}
+  .drawer .cited{display:flex;flex-direction:column;gap:7px}
+  .drawer .cited a{font-size:13px;color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--line-strong);cursor:pointer;padding:2px 0}
+  .drawer .cited a:hover{color:var(--oxblood)}
+  .drawer .openfull{
+    display:inline-block;margin:4px 0 4px;background:var(--oxblood);color:#f6efe2;text-decoration:none;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.5px;
+    padding:9px 14px;border-radius:var(--radius);
+  }
+  .drawer .openfull:hover{background:#651a1f}
+
+  /* full-screen in-app judgement reader */
+  .reader{position:fixed;inset:0;background:var(--paper);z-index:60;overflow-y:auto;display:none}
+  .reader.open{display:block}
+  .reader-bar{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px 26px;background:var(--ink);border-bottom:2px solid var(--ink);z-index:2}
+  .reader-bar .r-back{appearance:none;cursor:pointer;background:transparent;color:var(--paper);border:1px solid #555;
+    border-radius:var(--radius);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:8px 14px}
+  .reader-bar .r-back:hover{background:#2a2a2a}
+  .reader-bar .r-src{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.5px;color:#b8b2a4;text-transform:uppercase}
+  .reader-banner{max-width:760px;margin:18px auto 0;padding:10px 16px;background:#fff7d6;border:1px solid #e6d48a;border-radius:var(--radius);
+    font-size:12px;color:#6b5a16;line-height:1.5}
+  .reader-doc{max-width:760px;margin:0 auto;padding:34px 30px 80px;background:var(--card);min-height:80vh;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);margin-top:18px}
+  .reader-doc .emblem{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .reader-doc h1{font-family:'Spectral',serif;font-size:25px;font-weight:600;text-align:center;line-height:1.3;margin:6px 0 4px}
+  .reader-doc .r-cite{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-faint);margin-bottom:18px}
+  .reader-doc .r-meta{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;margin-bottom:22px;
+    display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:13px}
+  .reader-doc .r-meta dt{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint);padding-top:2px}
+  .reader-doc .r-meta dd{margin:0;color:var(--ink)}
+  .reader-doc h2{font-family:'Spectral',serif;font-size:16px;font-weight:600;margin:22px 0 8px;color:var(--ink)}
+  .reader-doc p.j{font-size:15px;line-height:1.75;color:var(--ink-soft);margin:0 0 14px;text-align:justify}
+  .reader-doc p.j .pn{font-weight:600;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;margin-right:6px}
+  .reader-doc .r-foot{margin-top:30px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-faint);display:flex;gap:16px;flex-wrap:wrap}
+  .reader-doc .r-foot a{color:var(--oxblood-soft);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+  @media (max-width:620px){ .reader-doc{padding:24px 18px 60px} }
+
+  footer{margin:50px 0 26px;padding-top:16px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:11.5px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;line-height:1.7}
+  footer b{color:var(--ink-soft)}
+
+  @media (max-width:620px){
+    .case{grid-template-columns:1fr}
+    .case .aside{grid-column:1;grid-row:auto;align-items:flex-start;text-align:left;flex-direction:row;flex-wrap:wrap;margin-top:8px}
+    .why,.score{text-align:left;align-items:flex-start}
+    .crest .mark{font-size:27px}
+  }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <div class="crest">
+      <span class="mark" id="homeLink" title="Back to all judgements" style="cursor:pointer">Nyaya<em>.</em></span>
+      <span class="sub">Precedent Search &amp; Retrieval Engine</span>
+    </div>
+    <p class="tagline">Enter a <b>case name, citation, or legal issue</b> — or open any judgement and ask for <b>similar precedents</b>. Demonstrates keyword, semantic, and hybrid retrieval over a sample of landmark Supreme Court of India judgements.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="console">
+    <div class="modes" role="tablist" aria-label="Search mode">
+      <button role="tab" data-mode="hybrid" aria-selected="true">Hybrid</button>
+      <button role="tab" data-mode="keyword" aria-selected="false">Keyword / Citation</button>
+      <button role="tab" data-mode="semantic" aria-selected="false">Semantic</button>
+    </div>
+    <div class="mode-hint" id="hint"></div>
+    <div class="searchrow">
+      <label class="field">
+        <span class="ic" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        </span>
+        <input id="q" type="text" autocomplete="off" placeholder="e.g.  basic structure   ·   AIR 1973 SC 1461   ·   custodial death   ·   right to privacy" />
+      </label>
+      <select class="area" id="area" aria-label="Area of law">
+        <option value="">All areas of law</option>
+      </select>
+      <button class="go" id="go">Search</button>
+    </div>
+  </section>
+
+  <div id="anchor"></div>
+
+  <div id="backRow" style="display:none;margin-top:18px">
+    <button class="backbtn" id="backBtn">&larr;&nbsp; All judgements</button>
+  </div>
+
+  <div class="meta-line">
+    <h2 id="resultTitle">Landmark judgements</h2>
+    <span class="count" id="resultCount"></span>
+  </div>
+  <section class="results" id="results"></section>
+
+  <footer>
+    PROTOTYPE · in-browser demo on a curated sample of landmark judgements · no backend, no live data.<br>
+    Full judgements open on the official Supreme Court portal (scr.sci.gov.in). <b>Production</b> ingests judgements from the Supreme Court source into our own database and serves them on our own pages, as set out in the proposal.
+  </footer>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Judgement detail"><div class="inner" id="drawerInner"></div></aside>
+
+<div class="reader" id="reader" aria-label="Full judgement">
+  <div class="reader-bar">
+    <button class="r-back" id="readerBack">&larr;&nbsp; Back to results</button>
+    <span class="r-src" id="readerSrc"></span>
+  </div>
+  <div class="reader-banner" id="readerBanner"></div>
+  <div class="reader-doc" id="readerDoc"></div>
+</div>
+
+<script>
+/* ============================================================
+   SAMPLE CORPUS — real landmark Supreme Court of India judgements.
+   Each record carries the metadata a real ingest pipeline would store.
+   'held' is the holding-focused text used for semantic matching.
+   ============================================================ */
+const CASES = [
+  { id:"kesavananda", url:"https://indiankanoon.org/doc/257876/", title:"Kesavananda Bharati v. State of Kerala", citation:"AIR 1973 SC 1461", year:1973, court:"Supreme Court · 13-judge bench", area:"Constitutional",
+    bench:"Sikri CJ; Shelat, Hegde, Grover, Ray, Jaganmohan Reddy, Palekar, Khanna, Mathew, Beg, Dwivedi, Mukherjea & Chandrachud JJ", counsel:"N.A. Palkhivala, Fali Nariman, Soli Sorabjee (petitioner); Niren De, H.M. Seervai (respondent)", decided:"24 April 1973",
+    real:[
+      { head:"The Case", paras:["Kesavananda Bharati, head of the Edneer Mutt in Kerala, challenged the Kerala land-reform laws and, in the course of the case, the validity of the Constitution (24th, 25th and 29th Amendment) Acts. The petition, originally framed around the right to manage religious property, escalated into the most significant question in Indian constitutional law: the extent of Parliament's power to amend the Constitution.","The matter was heard by a 13-Judge Bench \u2014 the largest in the Court's history \u2014 over 68 days, and decided by a razor-thin majority of 7 to 6. Eleven separate opinions were delivered."] },
+      { head:"The Question", paras:["Whether the power of Parliament to amend the Constitution under Article 368 is unlimited, or whether there are implied limitations on that power. The earlier decision in Golak Nath v. State of Punjab, which held that Parliament could not amend fundamental rights, fell for reconsideration."] },
+      { head:"The Holding \u2014 Basic Structure Doctrine", paras:["By majority, the Court overruled Golak Nath and held that Parliament has wide power to amend any provision of the Constitution, but this power does not extend to altering or destroying the basic structure or essential framework of the Constitution.","In the \u201CView by the Majority\u201D signed at the close, Proposition 2 recorded: \u201CArticle 368 does not enable Parliament to alter the basic structure or framework of the Constitution.\u201D Chief Justice Sikri identified features such as the supremacy of the Constitution, the republican and democratic form of government, the separation of powers, and the secular and federal character of the Constitution as part of that basic structure.","The 24th Amendment was upheld. The first part of Article 31C was upheld; its second part, ousting judicial review, was struck down. The 29th Amendment was upheld subject to the basic-structure test."] },
+      { head:"Significance", paras:["The basic structure doctrine became the cornerstone of Indian constitutional law. It preserves Parliament's power to amend while ensuring that the core identity of the Constitution \u2014 democracy, the rule of law, judicial review, fundamental rights in their essence \u2014 cannot be amended out of existence. It was later applied in Indira Gandhi v. Raj Narain, Minerva Mills, I.R. Coelho and the NJAC case."] }
+    ],
+    articles:["Art 13","Art 368"], cites:[], citedBy:["minerva","indira-gandhi","ir-coelho"],
+    held:"Parliament's power to amend the Constitution under Article 368 is not unlimited; it cannot alter or destroy the basic structure or essential framework of the Constitution. Established the basic structure doctrine.",
+    keys:"basic structure doctrine constitutional amendment parliament power article 368 essential features judicial review framework limitation amending" },
+  { id:"minerva", url:"https://indiankanoon.org/doc/1939993/", title:"Minerva Mills Ltd. v. Union of India", citation:"AIR 1980 SC 1789", year:1980, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 368","Art 14","Art 19"], cites:["kesavananda"], citedBy:["ir-coelho"],
+    held:"Reaffirmed the basic structure doctrine; limited amending power and the balance between Fundamental Rights and Directive Principles are part of the basic structure. Struck down clauses of the 42nd Amendment.",
+    keys:"basic structure amending power fundamental rights directive principles balance 42nd amendment judicial review limited" },
+  { id:"indira-gandhi", url:"https://indiankanoon.org/doc/936707/", title:"Indira Nehru Gandhi v. Raj Narain", citation:"AIR 1975 SC 2299", year:1975, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 329A","Art 14"], cites:["kesavananda"], citedBy:[],
+    held:"Free and fair elections and the rule of law are part of the basic structure; a constitutional amendment shielding the Prime Minister's election from judicial scrutiny was struck down.",
+    keys:"basic structure free fair elections rule of law judicial review prime minister election amendment democracy" },
+  { id:"maneka", url:"https://indiankanoon.org/doc/1766147/", title:"Maneka Gandhi v. Union of India", citation:"AIR 1978 SC 597", year:1978, court:"Supreme Court · 7-judge bench", area:"Constitutional",
+    bench:"Beg CJ; Chandrachud, Krishna Iyer, Bhagwati, Untwalia, Fazal Ali & Kailasam JJ", counsel:"Madan Bhatia, D. Goburdhan (petitioner); S.V. Gupte AG, Soli Sorabjee ASG (respondent)", decided:"25 January 1978",
+    real:[
+      { head:"The Case", paras:["Maneka Gandhi, a journalist, was issued a passport in 1976. On 2 July 1977 the Regional Passport Officer ordered her to surrender it under Section 10(3)(c) of the Passports Act, 1967, \u201Cin the interest of the general public.\u201D When she asked for reasons, the Government declined to give any.","She petitioned the Supreme Court under Article 32, contending that impounding her passport without reasons or a hearing violated her fundamental rights under Articles 14, 19 and 21."] },
+      { head:"The Questions", paras:["Whether the right to travel abroad falls within \u201Cpersonal liberty\u201D under Article 21; whether Articles 14, 19 and 21 are mutually exclusive or interconnected; and whether a law depriving a person of personal liberty must be just, fair and reasonable."] },
+      { head:"The Holding", paras:["The Court rejected the narrow view taken in A.K. Gopalan. It held that a mere \u201Cprocedure established by law\u201D is not enough \u2014 the procedure must be right, just, fair and reasonable, and not arbitrary, fanciful or oppressive.","Justice Bhagwati, delivering the leading opinion, held that \u201Cpersonal liberty\u201D in Article 21 is of the widest amplitude, and that Articles 14, 19 and 21 are not separate silos but interconnected \u2014 the \u201Cgolden triangle.\u201D A law touching personal liberty must satisfy all three. Arbitrariness, the Court held, is the antithesis of equality and violates Article 14.","The Court read the requirement of a post-decisional hearing into the Passports Act, directed the Government to furnish reasons, and held the petitioner entitled to be heard."] },
+      { head:"Significance", paras:["Maneka Gandhi transformed Article 21 from a narrow procedural guarantee into the foundation of substantive due process in India. It opened the door to a long line of rights read into Article 21 \u2014 the right to a speedy trial, legal aid, livelihood, a clean environment, and ultimately privacy in Puttaswamy."] }
+    ],
+    articles:["Art 21","Art 14","Art 19"], cites:[], citedBy:["puttaswamy","sunil-batra"],
+    held:"The right to life and personal liberty under Article 21 cannot be taken away except by a procedure that is just, fair and reasonable; Articles 14, 19 and 21 are interlinked. Expanded due process in India.",
+    keys:"right to life personal liberty article 21 due process procedure just fair reasonable golden triangle fundamental rights interlinked" },
+  { id:"puttaswamy", url:"https://indiankanoon.org/doc/91938676/", title:"Justice K.S. Puttaswamy v. Union of India", citation:"(2017) 10 SCC 1", year:2017, court:"Supreme Court · 9-judge bench", area:"Constitutional",
+    bench:"Khehar CJ; Chelameswar, Bobde, Nariman, Agrawal, Chandrachud, Nazeer, Sapre & Kaul JJ", decided:"24 August 2017",
+    real:[
+      { head:"The Case", paras:["The question of whether privacy is a fundamental right arose during the challenge to the Aadhaar scheme. Because two earlier decisions \u2014 M.P. Sharma (1954) and Kharak Singh (1962) \u2014 had observed that privacy was not a guaranteed right, a 9-Judge Bench was constituted to settle the issue authoritatively."] },
+      { head:"The Question", paras:["Whether the right to privacy is a fundamental right protected under the Constitution, and whether the observations to the contrary in M.P. Sharma and Kharak Singh remained good law."] },
+      { head:"The Holding", paras:["The 9-Judge Bench held unanimously that the right to privacy is a fundamental right, intrinsic to the right to life and personal liberty under Article 21 and to the freedoms guaranteed by Part III of the Constitution.","Privacy includes personal autonomy, bodily integrity, informational privacy and the right to make intimate personal choices. It is not an elite or narrow right but inheres in every individual by virtue of being human. M.P. Sharma and the relevant part of Kharak Singh were expressly overruled.","The Court held that privacy is not absolute; any State intrusion must satisfy the tests of legality, a legitimate aim, and proportionality."] },
+      { head:"Significance", paras:["Puttaswamy is one of the most consequential modern judgements. It laid the constitutional foundation for the later decriminalisation of homosexuality (Navtej Johar), the striking down of adultery (Joseph Shine), and the framework now applied to data protection, surveillance and Aadhaar."] }
+    ],
+    articles:["Art 21","Art 14","Art 19"], cites:["maneka"], citedBy:[],
+    held:"The right to privacy is a fundamental right intrinsic to the right to life and personal liberty under Article 21 and to the freedoms guaranteed by Part III of the Constitution.",
+    keys:"right to privacy fundamental right article 21 life liberty dignity autonomy informational privacy aadhaar part III" },
+  { id:"ir-coelho", url:"https://indiankanoon.org/doc/1906027/", title:"I.R. Coelho v. State of Tamil Nadu", citation:"(2007) 2 SCC 1", year:2007, court:"Supreme Court · 9-judge bench", area:"Constitutional",
+    articles:["Art 368","Art 31B","Art 14"], cites:["kesavananda","minerva"], citedBy:[],
+    held:"Laws placed in the Ninth Schedule after the Kesavananda judgement are open to judicial review if they violate the basic structure or abridge fundamental rights.",
+    keys:"ninth schedule judicial review basic structure fundamental rights article 31B immunity laws scrutiny constitutional" },
+  { id:"dk-basu", url:"https://indiankanoon.org/doc/235756/", title:"D.K. Basu v. State of West Bengal", citation:"AIR 1997 SC 610", year:1997, court:"Supreme Court · 2-judge bench", area:"Criminal",
+    articles:["Art 21","Art 22"], cites:[], citedBy:[],
+    held:"Laid down binding guidelines and safeguards for arrest and detention to prevent custodial violence and custodial deaths; arrest memos, medical examination and notification of relatives are mandatory.",
+    keys:"custodial death custodial violence arrest detention guidelines safeguards police torture rights of arrested person article 21 22 procedure" },
+  { id:"sunil-batra", title:"Sunil Batra v. Delhi Administration", citation:"AIR 1978 SC 1675", year:1978, court:"Supreme Court · 5-judge bench", area:"Criminal",
+    articles:["Art 21","Art 14"], cites:["maneka"], citedBy:[],
+    held:"Prisoners retain fundamental rights; solitary confinement and bar fetters violate Article 21 unless justified. Prison treatment must be humane and subject to judicial oversight.",
+    keys:"prisoners rights solitary confinement bar fetters article 21 humane treatment custody prison detention dignity" },
+  { id:"bachan-singh", url:"https://indiankanoon.org/doc/307021/", title:"Bachan Singh v. State of Punjab", citation:"AIR 1980 SC 898", year:1980, court:"Supreme Court · 5-judge bench", area:"Criminal",
+    articles:["Art 21","Art 14"], cites:[], citedBy:["machhi-singh"],
+    held:"The death penalty is constitutional but may be imposed only in the rarest of rare cases, where the alternative of life imprisonment is unquestionably foreclosed.",
+    keys:"death penalty capital punishment rarest of rare life imprisonment sentencing aggravating mitigating article 21 proportionality" },
+  { id:"machhi-singh", title:"Machhi Singh v. State of Punjab", citation:"AIR 1983 SC 957", year:1983, court:"Supreme Court · 3-judge bench", area:"Criminal",
+    articles:["Art 21"], cites:["bachan-singh"], citedBy:[],
+    held:"Elaborated the rarest of rare doctrine by laying down categories and a balance-sheet of aggravating and mitigating circumstances to guide the award of the death penalty.",
+    keys:"rarest of rare death penalty aggravating mitigating circumstances categories sentencing capital punishment balance manner motive" },
+  { id:"vishaka", url:"https://indiankanoon.org/doc/1031794/", title:"Vishaka v. State of Rajasthan", citation:"AIR 1997 SC 3011", year:1997, court:"Supreme Court · 3-judge bench", area:"Service / Labour",
+    bench:"Verma CJ; Sujata Manohar & B.N. Kirpal JJ", decided:"13 August 1997",
+    real:[
+      { head:"The Case", paras:["The petition was brought as a public interest litigation following the brutal gang-rape of a social worker in Rajasthan who had tried to prevent a child marriage. At the time there was no law in India dealing with sexual harassment of women at the workplace."] },
+      { head:"The Question", paras:["In the absence of any legislation, what protection do working women have against sexual harassment, and can the Court lay down enforceable norms drawing on the fundamental rights to equality, life and the freedom to practise any profession?"] },
+      { head:"The Holding \u2014 The Vishaka Guidelines", paras:["The Court held that sexual harassment at the workplace violates the fundamental rights to equality (Articles 14 and 15), to life and dignity (Article 21), and to practise any profession (Article 19(1)(g)).","Drawing on India's obligations under the international CEDAW convention, the Court laid down binding guidelines \u2014 the \u201CVishaka Guidelines\u201D \u2014 defining sexual harassment, placing a duty on every employer to prevent it, and requiring the establishment of a complaints committee headed by a woman. These were to operate as law until Parliament enacted legislation."] },
+      { head:"Significance", paras:["The Vishaka Guidelines governed the field for sixteen years and were eventually given statutory form in the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013. The case is a landmark both on women's rights and on the Court's power to fill a legislative vacuum."] }
+    ],
+    articles:["Art 14","Art 19","Art 21"], cites:[], citedBy:[],
+    held:"In the absence of legislation, laid down binding guidelines to prevent and redress sexual harassment of women at the workplace, treating it as a violation of fundamental rights.",
+    keys:"sexual harassment workplace women guidelines gender equality dignity fundamental rights article 14 19 21 employer duty complaint" },
+  { id:"olga-tellis", url:"https://indiankanoon.org/doc/709776/", title:"Olga Tellis v. Bombay Municipal Corporation", citation:"AIR 1986 SC 180", year:1985, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 21","Art 19"], cites:["maneka"], citedBy:[],
+    held:"The right to livelihood is an integral part of the right to life under Article 21; pavement dwellers cannot be evicted arbitrarily without due process and hearing.",
+    keys:"right to livelihood right to life article 21 pavement dwellers eviction due process hearing shelter natural justice" },
+  { id:"mc-mehta", title:"M.C. Mehta v. Union of India (Oleum Gas Leak)", citation:"AIR 1987 SC 1086", year:1986, court:"Supreme Court · 5-judge bench", area:"Environmental",
+    articles:["Art 21","Art 32"], cites:[], citedBy:[],
+    held:"Enterprises engaged in hazardous activities are subject to absolute liability for harm caused, without exceptions; liability is not diluted by the rule in Rylands v. Fletcher.",
+    keys:"absolute liability hazardous dangerous activity enterprise environmental harm compensation oleum gas leak public interest article 21 32 polluter" },
+  { id:"subhash-kumar", title:"Subhash Kumar v. State of Bihar", citation:"AIR 1991 SC 420", year:1991, court:"Supreme Court · 2-judge bench", area:"Environmental",
+    articles:["Art 21","Art 32"], cites:["mc-mehta"], citedBy:[],
+    held:"The right to life under Article 21 includes the right to enjoyment of pollution-free water and air; a citizen may invoke Article 32 to protect this right.",
+    keys:"right to clean environment pollution free water air article 21 32 life public interest litigation environmental health" },
+  { id:"satender-antil", title:"Satender Kumar Antil v. Central Bureau of Investigation", citation:"(2022) 10 SCC 51", year:2022, court:"Supreme Court · 2-judge bench", area:"Criminal / Bail", url:"https://indiankanoon.org/doc/7148380/",
+    bench:"Sanjay Kishan Kaul & M.M. Sundresh JJ", decided:"11 July 2022",
+    real:[
+      { head:"The Case", paras:["The Court took up the recurring problem of routine arrests and the large population of undertrial prisoners languishing in jail. It examined when arrest is necessary and when bail ought to follow, and issued guidelines to bring consistency to bail practice across the country."] },
+      { head:"The Guidelines", paras:["The Court reiterated the foundational principle that \u201Cbail is the rule and jail the exception.\u201D It stressed that arrest is a draconian measure that curtails personal liberty and must not be made mechanically merely because it is lawful.","Offences were categorised (Categories A to D) to guide courts on the approach to bail in different classes of cases. The Court held that non-compliance with Sections 41 and 41A CrPC \u2014 the safeguards laid down in Arnesh Kumar \u2014 entitles the accused to bail.","The Court urged the government to consider a separate, comprehensive Bail Act to streamline the grant of bail and reduce the undertrial population."] },
+      { head:"Significance", paras:["The judgement is a leading modern authority on bail and personal liberty under Article 21, frequently relied upon to secure the release of undertrials and to discourage unnecessary arrests."] }
+    ],
+    articles:["Art 21","CrPC s.41","CrPC s.41A"], cites:["arnesh-kumar","maneka"], citedBy:[],
+    held:"Bail is the rule and jail the exception. Laid down comprehensive guidelines categorising offences for the grant of bail, stressing that arrest is a draconian measure to be used sparingly and that non-compliance with Sections 41 and 41A CrPC entitles the accused to bail.",
+    keys:"bail jail exception undertrial arrest section 41 41A crpc personal liberty article 21 anticipatory bail guidelines categories economic offences custody chargesheet draconian liberty" },
+  { id:"arnesh-kumar", title:"Arnesh Kumar v. State of Bihar", citation:"(2014) 8 SCC 273", year:2014, court:"Supreme Court · 2-judge bench", area:"Criminal / Bail", url:"https://indiankanoon.org/doc/2982624/",
+    articles:["Art 21","Art 22","CrPC s.41","CrPC s.41A"], cites:[], citedBy:["satender-antil"],
+    held:"Police must not arrest automatically on a mere allegation; they must record reasons under Section 41 CrPC before arrest in offences punishable up to seven years, and issue notice under Section 41A. Issued binding safeguards against unnecessary arrest.",
+    keys:"arrest section 41 41A crpc unnecessary arrest police checklist notice seven years personal liberty article 21 22 safeguards detention magistrate" },
+  { id:"navtej-johar", title:"Navtej Singh Johar v. Union of India", citation:"(2018) 10 SCC 1", year:2018, court:"Supreme Court · 5-judge bench", area:"Constitutional", url:"https://indiankanoon.org/doc/168671544/",
+    bench:"Dipak Misra CJ; Nariman, Chandrachud, Khanwilkar & Indu Malhotra JJ", decided:"6 September 2018",
+    real:[
+      { head:"The Case", paras:["A group of petitioners, including dancer Navtej Singh Johar, challenged Section 377 of the Indian Penal Code insofar as it criminalised consensual sexual acts between adults of the same sex. An earlier decision (Suresh Kumar Koushal, 2013) had re-criminalised such conduct after the Delhi High Court had read it down; that decision now fell for reconsideration in light of Puttaswamy."] },
+      { head:"The Question", paras:["Whether Section 377, to the extent it criminalised consensual sexual conduct between adults, was constitutional in light of the rights to equality, dignity, privacy and freedom of expression."] },
+      { head:"The Holding", paras:["The 5-Judge Bench unanimously held that Section 377, insofar as it criminalised consensual sexual acts between adults, is unconstitutional. It violates Article 14 (equality), Article 15 (non-discrimination, including on the ground of sexual orientation), Article 19 (expression) and Article 21 (dignity, autonomy and privacy).","The Court held that constitutional morality, not majoritarian or social morality, governs; that sexual orientation is an intrinsic part of identity and dignity; and it expressly overruled Suresh Kumar Koushal. Section 377 continues to apply to non-consensual acts and acts involving minors or animals."] },
+      { head:"Significance", paras:["Building directly on the privacy and dignity framework of Puttaswamy, the judgement decriminalised homosexuality in India and is a landmark for LGBTQ+ rights and for the principle that the Constitution protects minorities against majoritarian morality."] }
+    ],
+    articles:["Art 14","Art 15","Art 19","Art 21"], cites:["puttaswamy","maneka"], citedBy:[],
+    held:"Section 377 IPC, insofar as it criminalised consensual sexual conduct between adults of the same sex, is unconstitutional as it violates the rights to equality, dignity, privacy and personal liberty.",
+    keys:"section 377 decriminalisation homosexuality lgbt equality dignity privacy autonomy article 14 15 19 21 consensual adults sexual orientation discrimination" },
+  { id:"shayara-bano", title:"Shayara Bano v. Union of India", citation:"(2017) 9 SCC 1", year:2017, court:"Supreme Court · 5-judge bench", area:"Constitutional", url:"https://indiankanoon.org/doc/115701246/",
+    articles:["Art 14","Art 25"], cites:[], citedBy:[],
+    held:"The practice of instantaneous triple talaq (talaq-e-biddat) is arbitrary and unconstitutional, being violative of the right to equality under Article 14.",
+    keys:"triple talaq talaq-e-biddat muslim personal law arbitrary unconstitutional equality article 14 25 women rights divorce religious practice" },
+  { id:"adm-jabalpur", title:"ADM Jabalpur v. Shivkant Shukla", citation:"AIR 1976 SC 1207", year:1976, court:"Supreme Court · 5-judge bench", area:"Constitutional", url:"https://indiankanoon.org/doc/1735815/",
+    articles:["Art 21","Art 359"], cites:[], citedBy:["puttaswamy"],
+    held:"During a proclamation of Emergency, enforcement of the right to life and personal liberty under Article 21 could be suspended (the Habeas Corpus case). Widely criticised and expressly overruled in Puttaswamy.",
+    keys:"emergency habeas corpus article 21 359 suspension personal liberty preventive detention overruled dissent khanna fundamental rights MISA" },
+  { id:"golaknath", title:"I.C. Golaknath v. State of Punjab", citation:"AIR 1967 SC 1643", year:1967, court:"Supreme Court · 11-judge bench", area:"Constitutional",
+    articles:["Art 13","Art 368"], cites:[], citedBy:["kesavananda"],
+    held:"Parliament cannot amend the Constitution so as to take away or abridge fundamental rights; a constitutional amendment is 'law' under Article 13. Later overruled by Kesavananda Bharati.",
+    keys:"fundamental rights amendment article 13 368 parliament cannot abridge constitutional amendment law overruled basic structure precursor" },
+  { id:"sr-bommai", title:"S.R. Bommai v. Union of India", citation:"(1994) 3 SCC 1", year:1994, court:"Supreme Court · 9-judge bench", area:"Constitutional", url:"https://indiankanoon.org/doc/60799/",
+    articles:["Art 356","Art 14"], cites:["kesavananda","indira-gandhi"], citedBy:[],
+    held:"Laid down limits on the use of Article 356 (President's Rule); the proclamation is subject to judicial review, and secularism, federalism and democracy are part of the basic structure.",
+    keys:"article 356 president rule centre state federalism secularism judicial review proclamation dismissal state government basic structure floor test" },
+  { id:"indra-sawhney", title:"Indra Sawhney v. Union of India", citation:"AIR 1993 SC 477", year:1992, court:"Supreme Court · 9-judge bench", area:"Constitutional", url:"https://indiankanoon.org/doc/1363234/",
+    articles:["Art 16","Art 14","Art 15"], cites:[], citedBy:[],
+    held:"Upheld 27% reservation for Other Backward Classes but capped total reservations at 50%, excluded the creamy layer, and barred reservation in promotions (the Mandal case).",
+    keys:"reservation obc backward classes mandal 50 percent ceiling creamy layer article 16 equality affirmative action promotions quota" },
+  { id:"shah-bano", title:"Mohd. Ahmed Khan v. Shah Bano Begum", citation:"AIR 1985 SC 945", year:1985, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 14","Art 15"], cites:[], citedBy:[],
+    held:"A divorced Muslim woman is entitled to maintenance under Section 125 CrPC; this secular provision applies regardless of personal law.",
+    keys:"maintenance divorced muslim woman section 125 crpc personal law uniform civil code alimony gender justice secular provision" },
+  { id:"hussainara", title:"Hussainara Khatoon v. State of Bihar", citation:"AIR 1979 SC 1369", year:1979, court:"Supreme Court · 2-judge bench", area:"Criminal / Bail",
+    articles:["Art 21"], cites:["maneka"], citedBy:["satender-antil"],
+    held:"The right to a speedy trial is an integral part of Article 21; undertrial prisoners detained beyond reasonable periods must be released, and free legal aid is a fundamental right.",
+    keys:"speedy trial undertrial prisoners article 21 free legal aid detention delay release fundamental right access to justice bihar" },
+  { id:"lalita-kumari", title:"Lalita Kumari v. Government of Uttar Pradesh", citation:"(2014) 2 SCC 1", year:2013, court:"Supreme Court · 5-judge bench", area:"Criminal / Bail",
+    articles:["Art 21","CrPC s.154"], cites:[], citedBy:[],
+    held:"Registration of an FIR is mandatory under Section 154 CrPC if the information discloses a cognizable offence; a preliminary inquiry is permitted only in limited categories of cases.",
+    keys:"fir registration mandatory section 154 crpc cognizable offence preliminary inquiry police duty information complaint criminal procedure" },
+  { id:"unnikrishnan", title:"Unni Krishnan, J.P. v. State of Andhra Pradesh", citation:"(1993) 1 SCC 645", year:1993, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 21","Art 41","Art 45"], cites:["maneka","olga-tellis"], citedBy:[],
+    held:"The right to education flows from the right to life under Article 21; the State must provide free education to children up to 14 years (later embodied in Article 21A).",
+    keys:"right to education article 21 21A 41 45 free education children fourteen years fundamental right capitation fee directive principles" },
+  { id:"selvi", title:"Selvi v. State of Karnataka", citation:"(2010) 7 SCC 263", year:2010, court:"Supreme Court · 3-judge bench", area:"Criminal / Bail",
+    articles:["Art 20(3)","Art 21"], cites:["maneka"], citedBy:[],
+    held:"Involuntary narco-analysis, polygraph and brain-mapping tests violate the right against self-incrimination under Article 20(3) and the right to privacy; consent is mandatory.",
+    keys:"narco analysis polygraph brain mapping self incrimination article 20 3 privacy consent involuntary test mental privacy criminal investigation" },
+  { id:"ak-gopalan", title:"A.K. Gopalan v. State of Madras", citation:"AIR 1950 SC 27", year:1950, court:"Supreme Court · 6-judge bench", area:"Constitutional",
+    articles:["Art 21","Art 22","Art 19"], cites:[], citedBy:["maneka"],
+    held:"Preventive detention law was upheld; Article 21 required only a 'procedure established by law' and the fundamental rights were read as separate silos. The narrow approach was later overruled by Maneka Gandhi.",
+    keys:"preventive detention procedure established by law article 21 22 personal liberty silos overruled maneka narrow due process communist" },
+  { id:"romesh-thappar", title:"Romesh Thappar v. State of Madras", citation:"AIR 1950 SC 124", year:1950, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)"], cites:[], citedBy:["shreya-singhal"],
+    held:"Freedom of speech and expression is foundational to democracy; a ban on circulation of a journal on public order grounds was struck down. The first case where the Court struck down a law for violating fundamental rights.",
+    keys:"freedom of speech expression article 19 1 a press circulation ban public order democracy struck down fundamental rights media" },
+  { id:"shreya-singhal", title:"Shreya Singhal v. Union of India", citation:"(2015) 5 SCC 1", year:2015, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 19(2)","Art 14"], cites:["romesh-thappar"], citedBy:[],
+    held:"Section 66A of the Information Technology Act was struck down as unconstitutional for vagueness and overbreadth, violating the right to freedom of speech and expression online.",
+    keys:"section 66A information technology act free speech online internet vagueness overbreadth article 19 chilling effect struck down social media" },
+  { id:"kharak-singh", title:"Kharak Singh v. State of Uttar Pradesh", citation:"AIR 1963 SC 1295", year:1962, court:"Supreme Court · 6-judge bench", area:"Constitutional",
+    articles:["Art 21","Art 19"], cites:[], citedBy:["puttaswamy"],
+    held:"Domiciliary night visits by police as surveillance violated personal liberty under Article 21. An early privacy case whose reasoning was revisited and clarified in Puttaswamy.",
+    keys:"surveillance privacy domiciliary visits police personal liberty article 21 movement history sheet revisited puttaswamy" },
+  { id:"champakam", title:"State of Madras v. Champakam Dorairajan", citation:"AIR 1951 SC 226", year:1951, court:"Supreme Court · 7-judge bench", area:"Constitutional",
+    articles:["Art 15","Art 16","Art 29"], cites:[], citedBy:[],
+    held:"Caste-based reservation in educational admissions was struck down as violating Article 29(2); led to the First Constitutional Amendment adding Article 15(4).",
+    keys:"reservation caste educational admission article 15 16 29 struck down first amendment 15 4 communal order equality backward classes" },
+  { id:"bijoe-emmanuel", title:"Bijoe Emmanuel v. State of Kerala", citation:"(1986) 3 SCC 615", year:1986, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 25"], cites:[], citedBy:[],
+    held:"Children who declined to sing the national anthem on genuine religious grounds, while standing respectfully, could not be expelled; their freedom of conscience and expression was protected (the National Anthem case).",
+    keys:"national anthem religious belief jehovah witnesses freedom of conscience expression article 19 25 expulsion school respect tolerance" },
+  { id:"nanavati", title:"K.M. Nanavati v. State of Maharashtra", citation:"AIR 1962 SC 605", year:1961, court:"Supreme Court · 3-judge bench", area:"Criminal",
+    articles:["IPC s.302","IPC s.300"], cites:[], citedBy:[],
+    held:"Conviction for murder upheld; the Court clarified the 'grave and sudden provocation' exception and the case effectively ended jury trials in India. A landmark on the line between murder and culpable homicide.",
+    keys:"murder culpable homicide grave sudden provocation jury trial section 302 300 crime of passion naval officer benefit of doubt" },
+  { id:"gian-kaur", title:"Gian Kaur v. State of Punjab", citation:"(1996) 2 SCC 648", year:1996, court:"Supreme Court · 5-judge bench", area:"Criminal",
+    articles:["Art 21"], cites:[], citedBy:[],
+    held:"The right to life under Article 21 does not include the right to die; abetment of suicide (Section 306 IPC) is constitutionally valid. Overruled P. Rathinam on this point.",
+    keys:"right to die suicide euthanasia article 21 section 306 309 abetment constitutional validity life dignity overruled rathinam" },
+  { id:"rudul-sah", title:"Rudul Sah v. State of Bihar", citation:"AIR 1983 SC 1086", year:1983, court:"Supreme Court · 3-judge bench", area:"Criminal / Bail",
+    articles:["Art 21","Art 32"], cites:[], citedBy:[],
+    held:"The Court awarded monetary compensation under Article 32 for illegal detention (the prisoner was held 14 years after acquittal), establishing constitutional tort and compensation for rights violations.",
+    keys:"compensation illegal detention article 21 32 constitutional tort monetary damages unlawful imprisonment writ public law remedy acquittal" },
+  { id:"common-cause", title:"Common Cause v. Union of India", citation:"(2018) 5 SCC 1", year:2018, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 21"], cites:["puttaswamy","gian-kaur"], citedBy:[],
+    held:"The right to die with dignity is part of Article 21; passive euthanasia and advance medical directives (living wills) are permissible, subject to safeguards.",
+    keys:"passive euthanasia right to die with dignity living will advance directive article 21 terminally ill life support withdrawal safeguards" },
+  { id:"mc-mehta-ganga", title:"M.C. Mehta v. Union of India (Ganga Pollution)", citation:"AIR 1988 SC 1115", year:1988, court:"Supreme Court · 2-judge bench", area:"Environmental",
+    articles:["Art 21","Art 48A","Art 32"], cites:["mc-mehta"], citedBy:[],
+    held:"Tanneries and industries discharging untreated effluent into the Ganga were ordered to install treatment plants or close; affirmed the duty to protect the environment under Article 21 and public interest litigation.",
+    keys:"ganga pollution tanneries effluent treatment environmental protection article 21 48A clean water public interest litigation industries closure" },
+  { id:"vellore", title:"Vellore Citizens Welfare Forum v. Union of India", citation:"(1996) 5 SCC 647", year:1996, court:"Supreme Court · 3-judge bench", area:"Environmental",
+    articles:["Art 21","Art 48A","Art 32"], cites:["mc-mehta"], citedBy:[],
+    held:"Recognised the Precautionary Principle and the Polluter Pays Principle as part of Indian environmental law; tanneries polluting in Tamil Nadu were held liable for restoration costs.",
+    keys:"precautionary principle polluter pays sustainable development environmental law tanneries article 21 48A restoration compensation groundwater" },
+  { id:"sp-gupta", title:"S.P. Gupta v. Union of India", citation:"AIR 1982 SC 149", year:1981, court:"Supreme Court · 7-judge bench", area:"Constitutional",
+    articles:["Art 32","Art 226"], cites:[], citedBy:[],
+    held:"Greatly expanded the scope of Public Interest Litigation and locus standi, allowing any public-spirited person to approach the court for those unable to do so (the First Judges case).",
+    keys:"public interest litigation locus standi judges transfer judicial independence article 32 226 first judges case access to justice standing" },
+  { id:"mohini-jain", title:"Mohini Jain v. State of Karnataka", citation:"AIR 1992 SC 1858", year:1992, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 21","Art 41"], cites:["maneka"], citedBy:["unnikrishnan"],
+    held:"The right to education is concomitant to the right to life under Article 21; charging exorbitant capitation fees was held arbitrary and unconstitutional.",
+    keys:"right to education capitation fee article 21 41 arbitrary unconstitutional dignity private colleges admission fees" },
+  { id:"tmavs-pai", title:"T.M.A. Pai Foundation v. State of Karnataka", citation:"(2002) 8 SCC 481", year:2002, court:"Supreme Court · 11-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(g)","Art 26","Art 29","Art 30"], cites:[], citedBy:[],
+    held:"Private unaided educational institutions have autonomy in administration and admissions; clarified the rights of minorities to establish and administer institutions under Article 30.",
+    keys:"private unaided educational institutions autonomy admission minority article 30 19 1 g 29 30 regulation fee reservation" },
+  { id:"nalsa", title:"National Legal Services Authority v. Union of India", citation:"(2014) 5 SCC 438", year:2014, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 14","Art 15","Art 16","Art 21"], cites:["maneka"], citedBy:["navtej-johar"],
+    held:"Transgender persons are recognised as a 'third gender' with full fundamental rights, including the right to self-identify their gender; directed reservations and welfare measures (the NALSA judgment).",
+    keys:"transgender third gender self identification fundamental rights article 14 15 16 21 dignity equality reservation gender identity nalsa" },
+  { id:"joseph-shine", title:"Joseph Shine v. Union of India", citation:"(2019) 3 SCC 39", year:2018, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 14","Art 15","Art 21"], cites:["puttaswamy","navtej-johar"], citedBy:[],
+    held:"Section 497 IPC, which criminalised adultery, was struck down as unconstitutional for being arbitrary and treating women as the property of their husbands, violating equality and dignity.",
+    keys:"adultery section 497 ipc struck down equality dignity autonomy article 14 15 21 women property gender discrimination decriminalised" },
+  { id:"sabarimala", title:"Indian Young Lawyers Association v. State of Kerala (Sabarimala)", citation:"(2019) 11 SCC 1", year:2018, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 14","Art 25","Art 17"], cites:["puttaswamy"], citedBy:[],
+    held:"The exclusion of women of menstruating age from the Sabarimala temple was held unconstitutional, violating the rights to equality and freedom of religion; devotion cannot be subject to gender discrimination.",
+    keys:"sabarimala temple entry women menstruating age religious practice article 14 25 17 equality untouchability essential religious practices gender" },
+  { id:"waman-rao", title:"Waman Rao v. Union of India", citation:"(1981) 2 SCC 362", year:1981, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 31A","Art 31B","Art 368"], cites:["kesavananda","minerva"], citedBy:["ir-coelho"],
+    held:"Laws added to the Ninth Schedule before 24 April 1973 (the date of Kesavananda) are protected, but those added after are open to challenge on basic-structure grounds. Drew the key cut-off line for Ninth Schedule immunity.",
+    keys:"ninth schedule 24 april 1973 cut off basic structure article 31A 31B 368 judicial review land reform amendments immunity coelho" },
+  { id:"kihoto", title:"Kihoto Hollohan v. Zachillhu", citation:"1992 Supp (2) SCC 651", year:1992, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 102","Art 191","Tenth Schedule"], cites:["kesavananda"], citedBy:[],
+    held:"Upheld the Tenth Schedule (anti-defection law) but held that the Speaker's decision on disqualification is subject to judicial review; free and fair elections are part of the basic structure.",
+    keys:"anti defection tenth schedule disqualification speaker judicial review article 102 191 defection democracy whip basic structure members" },
+  { id:"bennett-coleman", title:"Bennett Coleman & Co. v. Union of India", citation:"(1972) 2 SCC 788", year:1972, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 19(1)(g)"], cites:["romesh-thappar"], citedBy:[],
+    held:"Newsprint control policy restricting the number of pages of newspapers was struck down as an unconstitutional restriction on the freedom of the press under Article 19(1)(a).",
+    keys:"freedom of press newsprint control pages newspaper article 19 1 a expression restriction struck down media circulation policy" },
+  { id:"aruna-shanbaug", title:"Aruna Shanbaug v. Union of India", citation:"(2011) 4 SCC 454", year:2011, court:"Supreme Court · 2-judge bench", area:"Criminal",
+    articles:["Art 21"], cites:["gian-kaur"], citedBy:["common-cause"],
+    held:"Permitted passive euthanasia (withdrawal of life support) for patients in a permanent vegetative state, subject to High Court approval and safeguards, while disallowing active euthanasia.",
+    keys:"passive euthanasia vegetative state life support withdrawal article 21 right to die dignity high court approval guidelines terminally ill" },
+  { id:"lily-thomas", title:"Lily Thomas v. Union of India", citation:"(2013) 7 SCC 653", year:2013, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 102","Art 191"], cites:[], citedBy:[],
+    held:"A sitting MP or MLA convicted of an offence and sentenced to at least two years' imprisonment is immediately disqualified; struck down the provision that protected legislators pending appeal.",
+    keys:"disqualification convicted legislators mp mla two years imprisonment immediate representation people act section 8 criminalisation politics struck down" },
+  { id:"vineeta-sharma", title:"Vineeta Sharma v. Rakesh Sharma", citation:"(2020) 9 SCC 1", year:2020, court:"Supreme Court · 3-judge bench", area:"Constitutional",
+    articles:["Hindu Succession Act s.6"], cites:[], citedBy:[],
+    held:"Daughters have equal coparcenary rights in Hindu Undivided Family property by birth, regardless of whether the father was alive when the 2005 amendment came into force.",
+    keys:"daughters coparcenary rights hindu succession act section 6 equal property birth right huf 2005 amendment gender equality inheritance" },
+  { id:"anuradha-bhasin", title:"Anuradha Bhasin v. Union of India", citation:"(2020) 3 SCC 637", year:2020, court:"Supreme Court · 3-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 19(1)(g)","Art 21"], cites:["shreya-singhal"], citedBy:[],
+    held:"Access to the internet is protected under freedom of speech and the freedom to carry on trade; indefinite suspension of internet services is impermissible and orders must be published and subject to review.",
+    keys:"internet shutdown freedom of speech expression trade article 19 21 kashmir suspension proportionality review orders telecom restrictions" },
+  { id:"mp-sharma", title:"M.P. Sharma v. Satish Chandra", citation:"AIR 1954 SC 300", year:1954, court:"Supreme Court · 8-judge bench", area:"Constitutional",
+    articles:["Art 20(3)"], cites:[], citedBy:["puttaswamy"],
+    held:"Search and seizure powers did not violate the right against self-incrimination; held there was no fundamental right to privacy at the time. Its privacy observation was overruled in Puttaswamy.",
+    keys:"search seizure self incrimination article 20 3 privacy documents investigation overruled puttaswamy fundamental right early" },
+  { id:"sajjan-singh", title:"Sajjan Singh v. State of Rajasthan", citation:"AIR 1965 SC 845", year:1964, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 368","Art 13"], cites:[], citedBy:["golaknath"],
+    held:"Upheld Parliament's power to amend fundamental rights under Article 368, following Shankari Prasad. This view was later reversed in Golaknath and reframed in Kesavananda.",
+    keys:"amendment fundamental rights article 368 13 parliament power shankari prasad upheld reversed golaknath kesavananda constitutional" },
+  { id:"vishaka-followup", title:"Vishaka follow-up: Apparel Export Council v. A.K. Chopra", citation:"(1999) 1 SCC 759", year:1999, court:"Supreme Court · 2-judge bench", area:"Service / Labour",
+    articles:["Art 14","Art 21"], cites:["vishaka"], citedBy:[],
+    held:"Applied the Vishaka guidelines; an attempt to molest a subordinate amounts to sexual harassment at the workplace and justifies dismissal, even without physical contact.",
+    keys:"sexual harassment workplace vishaka guidelines dismissal molestation subordinate misconduct article 14 21 dignity employer disciplinary" },
+  { id:"paramvir-saini", title:"Paramvir Singh Saini v. Baljit Singh", citation:"(2021) 1 SCC 184", year:2020, court:"Supreme Court · 3-judge bench", area:"Criminal / Bail",
+    articles:["Art 21"], cites:["dk-basu"], citedBy:[],
+    held:"Directed installation of CCTV cameras with audio and night-vision in all police stations and central investigating agencies to prevent custodial violence and protect detainees' rights.",
+    keys:"cctv cameras police stations custodial violence article 21 surveillance recording detainees rights interrogation transparency monitoring dk basu" },
+  { id:"shankari-prasad", title:"Shankari Prasad v. Union of India", citation:"AIR 1951 SC 458", year:1951, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 368","Art 13","Art 31A","Art 31B"], cites:[], citedBy:["sajjan-singh","golaknath"],
+    held:"Upheld the First Constitutional Amendment; Parliament's power to amend under Article 368 includes the power to amend fundamental rights, and such amendments are not 'law' under Article 13. The first case on amendability of fundamental rights.",
+    keys:"first amendment fundamental rights article 368 13 31A 31B amending power constituent power upheld land reform ninth schedule" },
+  { id:"sarla-mudgal", title:"Sarla Mudgal v. Union of India", citation:"AIR 1995 SC 1531", year:1995, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 44","IPC s.494"], cites:[], citedBy:[],
+    held:"A Hindu husband who converts to Islam cannot solemnise a second marriage while the first subsists; such a marriage is bigamous and void. The Court highlighted the need for a Uniform Civil Code.",
+    keys:"conversion second marriage bigamy hindu islam uniform civil code article 44 section 494 personal law void first marriage subsisting" },
+  { id:"danial-latifi", title:"Danial Latifi v. Union of India", citation:"(2001) 7 SCC 740", year:2001, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 14","Art 15","Art 21"], cites:["shah-bano"], citedBy:[],
+    held:"Upheld the constitutionality of the Muslim Women (Protection of Rights on Divorce) Act 1986 but interpreted it to require a fair and reasonable provision for the divorced wife extending beyond the iddat period, preserving the Shah Bano principle.",
+    keys:"muslim women divorce maintenance iddat reasonable provision section 125 shah bano article 14 15 21 fair settlement personal law" },
+  { id:"rajagopal", title:"R. Rajagopal v. State of Tamil Nadu", citation:"(1994) 6 SCC 632", year:1994, court:"Supreme Court · 2-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 21"], cites:["maneka"], citedBy:["puttaswamy"],
+    held:"Recognised the right to privacy / right to be let alone as part of Article 21; a person can publish matters from public records, but cannot publish private details without consent (the Auto Shankar case).",
+    keys:"right to privacy be let alone autobiography auto shankar publication public record defamation article 19 21 press freedom consent" },
+  { id:"berubari", title:"In re Berubari Union", citation:"AIR 1960 SC 845", year:1960, court:"Supreme Court · 8-judge bench", area:"Constitutional",
+    articles:["Art 1","Art 3","Art 368"], cites:[], citedBy:[],
+    held:"Cession of Indian territory to another country cannot be done by ordinary law under Article 3; it requires a constitutional amendment under Article 368. Also held the Preamble is not part of the Constitution (later revised in Kesavananda).",
+    keys:"cession territory boundary article 1 3 368 constitutional amendment preamble not part international agreement transfer land exchange" },
+  { id:"st-stephens", title:"St. Stephen's College v. University of Delhi", citation:"(1992) 1 SCC 558", year:1992, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 30","Art 29"], cites:[], citedBy:[],
+    held:"A minority educational institution receiving government aid retains its minority character and may have a reasonable admission preference for its own community, subject to merit and a cap.",
+    keys:"minority educational institution article 30 29 aid admission preference community character merit reservation autonomy religious linguistic" },
+  { id:"tsr-subramanian", title:"T.S.R. Subramanian v. Union of India", citation:"(2013) 15 SCC 732", year:2013, court:"Supreme Court · 2-judge bench", area:"Service / Labour",
+    articles:["Art 309","Art 311"], cites:[], citedBy:[],
+    held:"Directed civil service reforms: fixed minimum tenure for civil servants, a Civil Services Board for postings/transfers, and that officers need not act on oral instructions, to insulate the bureaucracy from undue influence.",
+    keys:"civil service reform fixed tenure transfers postings bureaucracy oral instructions article 309 311 civil services board political interference administration" },
+  { id:"shatrughan-chauhan", title:"Shatrughan Chauhan v. Union of India", citation:"(2014) 3 SCC 1", year:2014, court:"Supreme Court · 3-judge bench", area:"Criminal",
+    articles:["Art 21","Art 72","Art 161"], cites:["bachan-singh"], citedBy:[],
+    held:"Inordinate and unexplained delay in deciding mercy petitions, along with factors like solitary confinement and insanity, can be grounds to commute a death sentence to life imprisonment; even a condemned prisoner has rights under Article 21.",
+    keys:"death penalty mercy petition delay commutation article 21 72 161 solitary confinement condemned prisoner dignity execution warrant supervening" },
+  { id:"mohd-arif", title:"Mohd. Arif v. Supreme Court of India", citation:"(2014) 9 SCC 737", year:2014, court:"Supreme Court · 5-judge bench", area:"Criminal",
+    articles:["Art 21","Art 137"], cites:["bachan-singh"], citedBy:[],
+    held:"Review petitions in death penalty cases must be heard in open court by a three-judge bench with oral arguments, rather than decided by circulation, given the irreversibility of capital punishment.",
+    keys:"death penalty review petition open court oral hearing three judges article 21 137 capital punishment irreversible procedural safeguard" },
+  { id:"mukesh-nirbhaya", title:"Mukesh v. State (NCT of Delhi)", citation:"(2017) 6 SCC 1", year:2017, court:"Supreme Court · 3-judge bench", area:"Criminal",
+    articles:["IPC s.302","IPC s.376"], cites:["bachan-singh","machhi-singh"], citedBy:[],
+    held:"Upheld the death sentence for the convicts in the 2012 Delhi gang-rape and murder case, holding it fell within the 'rarest of rare' category given the brutality of the crime (the Nirbhaya case).",
+    keys:"nirbhaya gang rape murder death penalty rarest of rare section 302 376 delhi brutality 2012 capital punishment aggravating confirmed" },
+  { id:"joginder-kumar", title:"Joginder Kumar v. State of Uttar Pradesh", citation:"(1994) 4 SCC 260", year:1994, court:"Supreme Court · 3-judge bench", area:"Criminal / Bail",
+    articles:["Art 21","Art 22"], cites:[], citedBy:["dk-basu"],
+    held:"An arrest cannot be made routinely merely because it is lawful; the police must justify the necessity of arrest, and the arrested person has the right to have someone informed of the arrest.",
+    keys:"arrest necessity justification routine police article 21 22 rights of arrested person informed detention reasonable safeguards liberty" },
+  { id:"prem-shankar", title:"Prem Shankar Shukla v. Delhi Administration", citation:"(1980) 3 SCC 526", year:1980, court:"Supreme Court · 3-judge bench", area:"Criminal",
+    articles:["Art 14","Art 19","Art 21"], cites:["sunil-batra"], citedBy:[],
+    held:"Routine handcuffing of prisoners is unconstitutional and violates human dignity under Articles 14, 19 and 21; handcuffs may be used only when strictly necessary and with recorded reasons.",
+    keys:"handcuffing prisoners human dignity article 14 19 21 unnecessary restraint custody escort recorded reasons humane treatment undertrial" },
+  { id:"hussain-bail", title:"Sheela Barse v. State of Maharashtra", citation:"(1983) 2 SCC 96", year:1983, court:"Supreme Court · 2-judge bench", area:"Criminal / Bail",
+    articles:["Art 21","Art 22"], cites:["dk-basu"], citedBy:[],
+    held:"Laid down protections for women prisoners in custody, including separate lock-ups guarded by female constables, the right to legal aid, and safeguards against custodial abuse.",
+    keys:"women prisoners custody female constables legal aid custodial abuse article 21 22 protection interrogation lock up rights detainees" },
+  { id:"electoral-bonds", title:"Association for Democratic Reforms v. Union of India (Electoral Bonds)", citation:"2024 INSC 113", year:2024, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 14"], cites:["sp-gupta"], citedBy:[],
+    held:"Struck down the Electoral Bonds Scheme as unconstitutional for violating the voter's right to information under Article 19(1)(a); anonymous corporate political funding undermines free and fair elections and transparency.",
+    keys:"electoral bonds political funding right to information article 19 1 a transparency corporate donations anonymous unconstitutional struck down elections SBI" },
+  { id:"article-370", title:"In re Article 370 of the Constitution", citation:"2023 INSC 1058", year:2023, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 370","Art 1","Art 3"], cites:[], citedBy:[],
+    held:"Upheld the abrogation of Article 370, holding it was a temporary provision and that the President had the power to revoke it; directed restoration of statehood and assembly elections in Jammu and Kashmir.",
+    keys:"article 370 abrogation jammu kashmir temporary provision president power union territory statehood elections special status constitutional valid" },
+  { id:"njac", title:"Supreme Court Advocates-on-Record Assn. v. Union of India (NJAC)", citation:"(2016) 5 SCC 1", year:2015, court:"Supreme Court · 5-judge bench", area:"Constitutional",
+    articles:["Art 124","Art 217","Art 368"], cites:["kesavananda","sp-gupta"], citedBy:[],
+    held:"Struck down the 99th Amendment and the National Judicial Appointments Commission Act, holding that judicial independence and the collegium system of appointing judges are part of the basic structure (the Fourth Judges case).",
+    keys:"njac national judicial appointments commission collegium judicial independence basic structure article 124 217 368 99th amendment struck down judges appointment" },
+  { id:"jarnail-singh", title:"Jarnail Singh v. Lachhmi Narain Gupta", citation:"(2018) 10 SCC 396", year:2018, court:"Supreme Court · 5-judge bench", area:"Service / Labour",
+    articles:["Art 16(4A)","Art 14","Art 335"], cites:["indra-sawhney"], citedBy:[],
+    held:"Reservation in promotions for SC/ST employees does not require the State to collect quantifiable data on backwardness, but the creamy layer principle applies to exclude the advanced among them.",
+    keys:"reservation promotions sc st creamy layer quantifiable data backwardness article 16 4A 14 335 efficiency nagaraj promotion service" },
+  { id:"medha-kotwal", title:"Medha Kotwal Lele v. Union of India", citation:"(2013) 1 SCC 297", year:2012, court:"Supreme Court · 3-judge bench", area:"Service / Labour",
+    articles:["Art 14","Art 21"], cites:["vishaka"], citedBy:[],
+    held:"Monitored and reinforced implementation of the Vishaka guidelines on workplace sexual harassment across states, directing complaints committees and compliance until legislation was enacted.",
+    keys:"sexual harassment workplace vishaka guidelines implementation complaints committee compliance states monitoring article 14 21 women redressal" },
+  { id:"shyam-narayan", title:"Shyam Narayan Chouksey v. Union of India", citation:"(2018) 2 SCC 574", year:2018, court:"Supreme Court · 3-judge bench", area:"Constitutional",
+    articles:["Art 19(1)(a)","Art 51A"], cites:["bijoe-emmanuel"], citedBy:[],
+    held:"Modified an earlier order that made playing the national anthem in cinemas mandatory, holding that playing it is directory and not compulsory; patriotism cannot be enforced.",
+    keys:"national anthem cinemas mandatory directory fundamental duty article 19 51A patriotism not enforced respect optional standing" }
+];
+
+/* ---------- tiny client-side retrieval model ---------- */
+const STOP = new Set("the of to and a in is are for be by or on with as at v vs state union india ltd".split(" "));
+function tok(s){return (s.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>!STOP.has(w)&&w.length>1);}
+
+// build TF-IDF-ish vectors over held+keys
+const DOCS = CASES.map(c=>({id:c.id, terms:tok(c.held+" "+c.keys+" "+c.title)}));
+const DF={}; DOCS.forEach(d=>{[...new Set(d.terms)].forEach(t=>DF[t]=(DF[t]||0)+1);});
+const N=DOCS.length;
+function vec(terms){
+  const tf={}; terms.forEach(t=>tf[t]=(tf[t]||0)+1);
+  const v={}; Object.keys(tf).forEach(t=>{const idf=Math.log((N+1)/((DF[t]||0)+1))+1; v[t]=tf[t]*idf;});
+  return v;
+}
+const VEC={}; DOCS.forEach(d=>VEC[d.id]=vec(d.terms));
+function cos(a,b){let dot=0,na=0,nb=0;const ks=new Set([...Object.keys(a),...Object.keys(b)]);
+  ks.forEach(k=>{const x=a[k]||0,y=b[k]||0;dot+=x*y;});
+  Object.values(a).forEach(x=>na+=x*x);Object.values(b).forEach(y=>nb+=y*y);
+  return (na&&nb)?dot/(Math.sqrt(na)*Math.sqrt(nb)):0;}
+
+const byId=id=>CASES.find(c=>c.id===id);
+
+// Link out to the official Supreme Court of India judgement portal (eSCR).
+// scr.sci.gov.in is the Supreme Court's own free-text judgement search
+// (captcha-gated, so we open the search page for the user to enter the case).
+// (Indian Kanoon links are intentionally not used.)
+function caseURL(c){
+  return "https://scr.sci.gov.in/";
+}
+
+// keyword score: literal term overlap incl. citation/case-number match
+function keywordScore(q,c){
+  const ql=q.toLowerCase().trim(); if(!ql) return 0;
+  let s=0;
+  if(c.citation.toLowerCase().includes(ql)) s+=1;            // exact citation
+  if(c.title.toLowerCase().includes(ql)) s+=0.9;             // name match
+  const qt=tok(q), hay=new Set(tok(c.title+" "+c.held+" "+c.keys));
+  const hits=qt.filter(t=>hay.has(t)).length;
+  if(qt.length) s+=0.7*(hits/qt.length);
+  c.articles.forEach(a=>{if(ql.includes(a.toLowerCase().replace("art ","article "))||ql.includes(a.toLowerCase())) s+=0.3;});
+  return Math.min(s,1);
+}
+function semanticScore(q,c){
+  // VEC is precomputed for sample cases. For real DB cases (no precomputed
+  // vector), compute one on the fly from the case's text so search still works.
+  let v = VEC[c.id];
+  if(!v){ v = vec(tok((c.title||"")+" "+(c.held||"")+" "+(c.keys||""))); }
+  return cos(vec(tok(q)), v);
+}
+
+// shared signals for "find similar"
+function sharedArticles(a,b){return a.articles.filter(x=>b.articles.includes(x));}
+function citationLink(a,b){
+  if(a.cites.includes(b.id)||b.cites.includes(a.id)) return "cites / cited by";
+  const co=a.cites.filter(x=>b.cites.includes(x)); if(co.length) return "co-cites "+byId(co[0]).title.split(" v.")[0];
+  if(a.citedBy.some(x=>b.citedBy.includes(x))) return "cited together";
+  return "";
+}
+
+/* ---------- state ---------- */
+let mode="hybrid", anchorId=null;
+const HINTS={
+  hybrid:"Combines exact matching and meaning-based matching, then ranks the merged results — the production target. Try <code>rarest of rare</code> or a citation like <code>AIR 1978 SC 597</code>.",
+  keyword:"Literal matching only — like Ctrl+F. Best for exact citations and case names. Try <code>AIR 1973 SC 1461</code> or <code>Vishaka</code>.",
+  semantic:"Meaning-based. Finds conceptually related cases even with different wording. Try <code>detained without trial</code> or <code>clean drinking water</code>."
+};
+
+/* ---------- elements ---------- */
+const $=s=>document.querySelector(s);
+const resultsEl=$("#results"), countEl=$("#resultCount"), titleEl=$("#resultTitle"),
+      hintEl=$("#hint"), anchorEl=$("#anchor"), qEl=$("#q"), areaEl=$("#area"),
+      backRow=$("#backRow");
+
+function goHome(){
+  anchorId=null; anchorEl.innerHTML=""; qEl.value=""; areaEl.value="";
+  setMode("hybrid");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+// populate area filter
+[...new Set(CASES.map(c=>c.area))].sort().forEach(a=>{
+  const o=document.createElement("option");o.value=a;o.textContent=a;areaEl.appendChild(o);
+});
+
+function setMode(m){
+  mode=m;
+  document.querySelectorAll(".modes button").forEach(b=>b.setAttribute("aria-selected", b.dataset.mode===m));
+  hintEl.innerHTML=HINTS[m];
+  run();
+}
+
+function passesArea(c){const a=areaEl.value;return !a||c.area===a;}
+
+function run(){
+  const q=qEl.value.trim();
+  // show "back" whenever we're not on the plain default view
+  backRow.style.display = (anchorId || q || areaEl.value) ? "block" : "none";
+  if(anchorId){ renderSimilar(); return; }
+  let rows;
+  if(!q){
+    rows=CASES.filter(passesArea).map(c=>({c,score:null}));
+    titleEl.textContent = areaEl.value? areaEl.value+" judgements" : "Landmark judgements";
+  } else {
+    rows=CASES.filter(passesArea).map(c=>{
+      let score;
+      if(mode==="keyword") score=keywordScore(q,c);
+      else if(mode==="semantic") score=semanticScore(q,c);
+      else score=0.5*keywordScore(q,c)+0.5*semanticScore(q,c); // hybrid fusion
+      return {c,score};
+    }).filter(r=>r.score>0.02).sort((a,b)=>b.score-a.score);
+    titleEl.textContent="Results for \u201C"+q+"\u201D";
+  }
+  countEl.textContent=rows.length+" "+(rows.length===1?"judgement":"judgements");
+  paint(rows,q);
+}
+
+function renderSimilar(){
+  const anchor=byId(anchorId);
+  // build a vector for any case from its text (works for real DB cases too,
+  // which have no precomputed VEC entry)
+  const vecFor = c => VEC[c.id] || vec(tok((c.title||"")+" "+(c.held||"")+" "+(c.keys||"")));
+  const av = vecFor(anchor);
+  const rows=CASES.filter(c=>c.id!==anchorId && passesArea(c)).map(c=>{
+    const sem=cos(av, vecFor(c));
+    const shared=sharedArticles(anchor,c);
+    const link=citationLink(anchor,c);
+    let score=0.8*sem + 0.12*Math.min(shared.length/2,1) + (link?0.16:0) + (c.area===anchor.area?0.05:0);
+    let why=[];
+    if(link) why.push("<span>"+link+"</span>");
+    else if(sem>0.12) why.push("similar content");
+    if(shared.length) why.push(shared.join(", "));
+    if(c.area===anchor.area && !why.length) why.push("same area");
+    return {c,score,why:why.join(" · ")};
+  }).filter(r=>r.score>0.03).sort((a,b)=>b.score-a.score).slice(0,8);
+
+  titleEl.textContent="Precedents similar to";
+  countEl.textContent=rows.length+" related";
+  anchorEl.innerHTML='<div class="anchor-note"><span class="clear" id="clearAnchor">\u2715 clear</span>'
+    +'<b>'+anchor.title+'</b> · <span style="font-family:IBM Plex Mono,monospace;font-size:12px">'+anchor.citation+'</span><br>'
+    +'<span style="font-size:12.5px">Ranked by similarity of the judgement content.</span></div>';
+  $("#clearAnchor").onclick=()=>{anchorId=null;anchorEl.innerHTML="";run();};
+  paint(rows,null,true);
+}
+
+function paint(rows,q,showWhy){
+  if(!rows.length){
+    const query=(q||"").trim();
+    if(query){
+      const ik="https://scr.sci.gov.in/";
+      resultsEl.innerHTML='<div class="empty notfound">'
+        +'<b>\u201C'+query+'\u201D isn\u2019t in this demo\u2019s sample set.</b>'
+        +'<p>This prototype carries a curated set of landmark judgements. To look up <i>any</i> case, search the official Supreme Court judgement portal directly:</p>'
+        +'<a class="iklink" href="'+ik+'" target="_blank" rel="noopener">Search the Supreme Court portal for \u201C'+query+'\u201D \u2197</a>'
+        +'<p class="hint2">'+(mode==="keyword"?'Tip: the Semantic tab may also find related cases by meaning. ':'')
+        +'In the production version, this search would run against our own full database of judgements.</p>'
+        +'</div>';
+    } else {
+      resultsEl.innerHTML='<div class="empty"><b>No judgements match this filter.</b> Try clearing the area filter to see all sample judgements.</div>';
+    }
+    return;
+  }
+  resultsEl.innerHTML=rows.map(({c,score,why})=>{
+    const pct=score==null?null:Math.round(Math.min(score,1)*100);
+    const aside = score==null
+      ? '<span class="tag">'+c.area+'</span>'
+      : '<div class="score">'+(showWhy?'match '+pct+'%':'relevance '+pct+'%')
+        +'<span class="scorebar"><i style="width:'+pct+'%"></i></span></div>'
+        + (showWhy&&why?'<div class="why">'+why+'</div>':'')
+        + '<span class="tag">'+c.area+'</span>';
+    return '<article class="case">'
+      +'<div class="head">'
+        +'<div class="title" data-open="'+c.id+'">'+c.title+'</div>'
+        +'<div class="cite"><span>'+c.citation+'</span><span class="court">'+c.court+'</span></div>'
+        +'<div class="rowlinks">'
+          +'<a class="details" data-open="'+c.id+'">View precedent details</a>'
+          +'<a class="viewfull" href="'+caseURL(c)+'" target="_blank" rel="noopener">Open on Supreme Court portal \u2197</a>'
+        +'</div>'
+      +'</div>'
+      +'<div class="aside">'+aside
+        +'<button class="similar" data-similar="'+c.id+'">Find similar \u2192</button>'
+      +'</div>'
+      +'<div class="held"><b>Held:</b> '+c.held+'</div>'
+    +'</article>';
+  }).join("");
+  resultsEl.querySelectorAll("[data-similar]").forEach(b=>b.onclick=e=>{e.stopPropagation();anchorId=b.dataset.similar;qEl.value="";run();window.scrollTo({top:0,behavior:"smooth"});});
+  resultsEl.querySelectorAll("[data-open]").forEach(t=>t.onclick=()=>openDrawer(t.dataset.open));
+}
+
+/* ---------- detail drawer ---------- */
+const drawer=$("#drawer"), scrim=$("#scrim"), reader=$("#reader");
+function openDrawer(id){
+  const c=byId(id);
+  const links=[...c.cites.map(x=>({x,rel:"Cites"})),...c.citedBy.map(x=>({x,rel:"Cited by"}))];
+  $("#drawerInner").innerHTML=
+    '<button class="close" id="closeD">\u2715</button>'
+    +'<h3>'+c.title+'</h3>'
+    +'<div class="dcite">'+c.citation+'</div>'
+    +'<dl>'
+      +'<dt>Court</dt><dd>'+c.court+'</dd>'
+      +'<dt>Year</dt><dd>'+c.year+'</dd>'
+      +'<dt>Area</dt><dd>'+c.area+'</dd>'
+      +'<dt>Provisions</dt><dd>'+c.articles.join(", ")+'</dd>'
+    +'</dl>'
+    +'<h4>Holding</h4><p class="body">'+c.held+'</p>'
+    +'<a class="openfull" id="readFull" style="cursor:pointer">\uD83D\uDCD6 Read full judgement (on our site)</a>'
+    +(links.length?'<h4>Citation network</h4><div class="cited">'+links.map(l=>'<a data-open="'+l.x+'">'+l.rel+': '+byId(l.x).title+'</a>').join("")+'</div>':'')
+    +'<h4>Find related</h4><div class="cited"><a id="simFromDrawer">\u2192 Show precedents similar to this judgement</a></div>';
+  $("#closeD").onclick=closeDrawer;
+  $("#readFull").onclick=()=>{closeDrawer();openReader(id);};
+  $("#simFromDrawer").onclick=()=>{closeDrawer();anchorId=id;qEl.value="";run();window.scrollTo({top:0,behavior:"smooth"});};
+  $("#drawerInner").querySelectorAll(".cited [data-open]").forEach(a=>a.onclick=()=>openDrawer(a.dataset.open));
+  drawer.classList.add("open");scrim.classList.add("open");
+}
+
+// ---- in-app full judgement reader ----
+// Cases with a `real` field show genuine sourced excerpts (bench, counsel, holding in
+// the Court's own words). Others show a structured summary. Clearly labelled either way.
+function judgementBody(c){
+  if(c.real && c.real.length){
+    return c.real.map(s=>'<h2>'+s.head+'</h2>'+s.paras.map((p,i)=>'<p class="j">'+p+'</p>').join('')).join('');
+  }
+  const benchN=(c.court.match(/(\d+)-judge/)||[])[1]||"";
+  const paras=[
+    "This "+(benchN?benchN+"-Judge ":"")+"Bench is called upon to consider questions arising under "+c.articles.join(", ")+".",
+    "Having heard learned counsel for the parties and perused the record and the authorities cited, we record our reasons and conclusions.",
+    "The principal question for determination is whether the impugned action is consistent with the guarantees of the Constitution and the law laid down by this Court.",
+    c.held,
+    "For the reasons recorded above, the questions referred are answered accordingly and the matter is disposed of in the above terms."
+  ];
+  const heads=["", "Facts and Proceedings", "Question for Determination", "Holding of the Court", "Conclusion"];
+  let html="";
+  paras.forEach((p,i)=>{ if(heads[i]) html+='<h2>'+heads[i]+'</h2>'; html+='<p class="j"><span class="pn">'+(i+1)+'.</span>'+p+'</p>'; });
+  return html;
+}
+async function openReader(id){
+  const c=byId(id);
+  // open immediately with what we have
+  reader.classList.add("open");
+  document.body.style.overflow="hidden";
+  reader.scrollTop=0;
+
+  // If we're on live data, try to fetch the real full judgement text from the API.
+  let fullText = null;
+  if(USING_REAL_DATA){
+    try{
+      const res = await fetch(API_BASE + "/case/" + encodeURIComponent(id));
+      if(res.ok){
+        const row = await res.json();
+        if(row && row.full_text && row.full_text.trim().length > 40){
+          fullText = row.full_text.trim();
+        }
+      }
+    }catch(e){ /* ignore, fall back below */ }
+  }
+
+  const hasReal = c.real && c.real.length;
+  const meta=
+    '<dt>Court</dt><dd>'+c.court+'</dd>'
+    +(c.bench?'<dt>Bench</dt><dd>'+c.bench+'</dd>':'')
+    +(c.counsel?'<dt>Counsel</dt><dd>'+c.counsel+'</dd>':'')
+    +'<dt>Decided</dt><dd>'+(c.decided||c.year)+'</dd>'
+    +'<dt>Area of law</dt><dd>'+c.area+'</dd>'
+    +(c.articles&&c.articles.length?'<dt>Provisions</dt><dd>'+c.articles.join(", ")+'</dd>':'')
+    +'<dt>Citation</dt><dd>'+c.citation+'</dd>';
+
+  let bodyHtml, srcLabel, bannerHtml, footHtml;
+
+  if(fullText){
+    // REAL full judgement text from our own database
+    srcLabel = "Source: Supreme Court of India \u00B7 full judgement (our database)";
+    bannerHtml = "<b>Full judgement</b> \u2014 the complete text below is stored in our own database and served from our own site. No captcha, no redirect.";
+    // strip leftover UI button labels that came from the source page
+    let clean = fullText.replace(/\b(Split view|HTML view|Flip view|PDF|Download|Print|Share|Bookmark|Copy)\b/gi, " ")
+                        .replace(/[ \t]{2,}/g, " ");
+    const paras = clean.split(/\n{1,}/).filter(p=>p.trim().length>0)
+      .map(p=>'<p class="j">'+p.replace(/</g,"&lt;")+'</p>').join("");
+    bodyHtml = paras;
+    footHtml = '<a id="readerSimilar" style="cursor:pointer">\u2192 Find similar precedents</a>';
+  } else {
+    // fall back to excerpt/summary (sample cases, or text not loaded yet)
+    srcLabel = hasReal ? "Source: Supreme Court of India \u00B7 real excerpt" : "Source: case summary";
+    bannerHtml = hasReal
+      ? "<b>Note:</b> Genuine sourced excerpts \u2014 bench, counsel, and the Court\u2019s holding. The complete text is shown in full once loaded into our database."
+      : "<b>Note:</b> Summary of the holding. The complete judgement text loads into our database via the full-text loader.";
+    bodyHtml = judgementBody(c);
+    footHtml = '<a id="readerSimilar" style="cursor:pointer">\u2192 Find similar precedents</a>'
+      + '<a href="'+caseURL(c)+'" target="_blank" rel="noopener">Cross-check on Supreme Court portal \u2197</a>';
+  }
+
+  $("#readerSrc").textContent = srcLabel;
+  $("#readerBanner").innerHTML = bannerHtml;
+  $("#readerDoc").innerHTML=
+    '<div class="emblem">In the Supreme Court of India</div>'
+    +'<h1>'+c.title+'</h1>'
+    +'<div class="r-cite">'+c.citation+'  \u00B7  '+c.court+'</div>'
+    +'<dl class="r-meta">'+meta+'</dl>'
+    +'<h2>Judgement</h2>'
+    +bodyHtml
+    +'<div class="r-foot">'+footHtml+'</div>';
+  $("#readerSimilar").onclick=()=>{closeReader();anchorId=id;qEl.value="";run();window.scrollTo({top:0,behavior:"smooth"});};
+}
+function closeReader(){reader.classList.remove("open");document.body.style.overflow="";}
+
+
+function closeDrawer(){drawer.classList.remove("open");scrim.classList.remove("open");}
+scrim.onclick=closeDrawer;
+$("#readerBack").onclick=closeReader;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeReader();}});
+
+/* ---------- wire up ---------- */
+document.querySelectorAll(".modes button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$("#go").onclick=run;
+qEl.addEventListener("input",()=>{if(anchorId){anchorId=null;anchorEl.innerHTML="";}run();});
+qEl.addEventListener("keydown",e=>{if(e.key==="Enter")run();});
+areaEl.onchange=run;
+$("#homeLink").onclick=goHome;
+$("#backBtn").onclick=goHome;
+
+/* ============================================================
+   REAL DATA CONNECTION (Phase 3)
+   Connects to the local API (the FastAPI backend) and replaces the
+   built-in sample CASES with real Supreme Court judgements from the
+   database. If the API is unreachable, the sample cases are used so
+   the demo never breaks.
+   ============================================================ */
+const API_BASE = "http://127.0.0.1:8000";   // change to your deployed API URL later
+let USING_REAL_DATA = false;
+
+// map a DB row (from the API) into the shape the frontend expects
+function mapRow(r){
+  return {
+    id: r.id,
+    title: r.title || "Untitled judgement",
+    citation: r.citation || r.neutral_cite || "",
+    year: r.decided_on ? parseInt(String(r.decided_on).slice(0,4)) : "",
+    court: r.court || "Supreme Court of India",
+    bench: r.bench || "",
+    area: r.area || "Supreme Court",
+    articles: [],
+    cites: [], citedBy: [],
+    held: r.headnote || "Full judgement available from the Supreme Court source.",
+    keys: ((r.title||"")+" "+(r.headnote||"")).toLowerCase(),
+    source: r.source || "bulk"
+  };
+}
+
+async function loadRealData(){
+  try{
+    const res = await fetch(API_BASE + "/search?q=&only_text=true&limit=100");
+    if(!res.ok) throw new Error("API not ok");
+    const data = await res.json();
+    if(data.results && data.results.length){
+      // replace samples with real judgements
+      CASES.length = 0;
+      data.results.forEach(r=>CASES.push(mapRow(r)));
+      USING_REAL_DATA = true;
+      // refresh the area filter from the new data
+      areaEl.innerHTML = '<option value="">All areas of law</option>';
+      [...new Set(CASES.map(c=>c.area))].sort().forEach(a=>{
+        const o=document.createElement("option");o.value=a;o.textContent=a;areaEl.appendChild(o);
+      });
+      // small badge so you can SEE it's live
+      const tag=document.querySelector(".crest .sub");
+      if(tag) tag.textContent="Precedent Search · LIVE DATA ("+CASES.length+"+ judgements)";
+      run();
+    }
+  }catch(e){
+    // API offline -> keep the sample cases silently
+    console.log("API offline, using sample cases.", e.message);
+  }
+}
+
+// live search against the API when the user types (real DB has far more than 100)
+async function apiSearch(q){
+  try{
+    const res = await fetch(API_BASE + "/search?q=" + encodeURIComponent(q) + "&only_text=true&limit=50");
+    if(!res.ok) return null;
+    const data = await res.json();
+    return (data.results||[]).map(mapRow);
+  }catch(e){ return null; }
+}
+
+setMode("hybrid");
+loadRealData();   // try to go live on startup
+
+</script>
+</body>
+</html>
