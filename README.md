@@ -13,6 +13,7 @@ Language: Python
 DATA SOURCES:
 Official Supreme Court eCourts judgements dataset, published as open data on the AWS Open Data Registry. This is the Court's own judgement data, distributed as files, and forms the main archive (judgements from 2000 to 2025 loaded so far, with full text).
 https://registry.opendata.aws/indian-supreme-court-judgments/
+
 bharat-courts, an open source library used to pull fresh judgements from the Supreme Court site's "Latest Judgements" feed, which is not behind a captcha.
 https://github.com/iamshouvikmitra/bharat-courts
 The reason for this approach: the Supreme Court search page is protected by a captcha, so it cannot be queried directly in an automated way. Instead of trying to defeat the captcha, the project uses the Court's official open dataset for the back catalogue and the no-captcha latest-judgements feed for recent cases. This keeps the data real and the method clean.
