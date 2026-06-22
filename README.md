@@ -1,68 +1,54 @@
-# Nyaya Backend — Supreme Court Judgement Database
 
-Real Supreme Court judgements, sourced from the **official eCourts/Supreme Court bulk dataset**
-(AWS Open Data), loaded into your own database and served by your own API.
+Nyaya - Backend
+Backend for Nyaya, a precedent search engine for Indian Supreme Court judgements. This repository contains the database setup, the data loaders, and the API that powers the search. The website that consumes this API lives in a separate repository (see below).
 
-This is built in phases. **Right now you are doing Phase 0 (setup).** Do not skip ahead —
-each phase needs the previous one working.
+What this does
+It builds and serves a searchable database of real Supreme Court of India judgements. Judgements are loaded from official open data, stored in a Postgres database, and exposed through a small API that the frontend calls to search cases, open full judgement text, and find similar precedents.
 
----
+How it is put together
+Database: Supabase (hosted Postgres)
+API: FastAPI, deployed on Render
+Language: Python
 
-## Phase 0 — Setup (do this first)
+Data sources
+Official Supreme Court eCourts judgements dataset, published as open data on the AWS Open Data Registry. This is the Court's own judgement data, distributed as files, and forms the main archive (judgements from 2000 to 2025 loaded so far, with full text).
+https://registry.opendata.aws/indian-supreme-court-judgments/
+bharat-courts, an open source library used to pull fresh judgements from the Supreme Court site's "Latest Judgements" feed, which is not behind a captcha.
+https://github.com/iamshouvikmitra/bharat-courts
+The reason for this approach: the Supreme Court search page is protected by a captcha, so it cannot be queried directly in an automated way. Instead of trying to defeat the captcha, the project uses the Court's official open dataset for the back catalogue and the no-captcha latest-judgements feed for recent cases. This keeps the data real and the method clean.
 
-### Step 1. Create a free cloud database (Supabase)
-1. Go to https://supabase.com and sign up (free).
-2. Click **New Project**. Give it a name (e.g. `nyaya`). Set a database password — **write it down.**
-3. Wait ~2 minutes for it to provision.
-4. Go to **Project Settings → Database → Connection string → URI**.
-   Choose the **Session pooler** option. Copy that string. It looks like:
-   `postgresql://postgres.abcd:[YOUR-PASSWORD]@aws-0-...pooler.supabase.com:5432/postgres`
-5. Replace `[YOUR-PASSWORD]` in that string with the password from step 2.
+Project structure
+api/ - the FastAPI application (search, case lookup, areas)
+core/ - database connection and configuration
+ingest/ - data loaders: bulk dataset loader, full-text loader, and the bharat-courts scraper
+scripts/ - helper script to load a range of years in one run
+db/ - database schema
+Setup
+Create a Supabase project and run db/schema.sql in its SQL editor to create the table.
+Copy .env.example to .env and add your database connection string.
 
-### Step 2. Set up the project on your machine
-Open a terminal in this folder, then:
+Install dependencies:
+   pip install -r requirements.txt
 
-```bash
-# 1. create a virtual environment (keeps packages tidy)
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+Load some judgements:
+   python -m scripts.load_years --start 2010 --end 2025 --limit 2000
 
-# 2. install the Python packages
-pip install -r requirements.txt
+Run the API locally:
+   uvicorn api.main:app --reload
 
-# 3. create your .env file from the template
-cp .env.example .env            # Windows: copy .env.example .env
-```
+Deployment
+The API is deployed on Render as a web service, with the database connection string set as an environment variable and the Python version pinned to 3.12. The frontend is deployed separately on Vercel and points at the deployed API.
 
-Now open `.env` in a text editor and paste your connection string from Step 1
-as the value of `DATABASE_URL`.
+Frontend repository
+The website (the search interface) is kept in a separate repository:
 
-### Step 3. Create the table
-In the Supabase dashboard, go to the **SQL Editor**, click **New query**, paste the
-entire contents of `db/schema.sql`, and click **Run**. You should see "Success".
+https://github.com/Anisha-Tiwaryy/Nyaya-Site
 
-### Step 4. Test the connection
-Back in your terminal (with the venv still active):
+Data credit
+Supreme Court judgement data is from the Indian Supreme Court Judgments open dataset on the AWS Open Data Registry, sourced from the eCourts system and used under its open licence.
 
-```bash
-python -m core.database
-```
 
-If you see `OK: PostgreSQL ...` — **Phase 0 is done.** Tell Claude and we move to Phase 1
-(loading real judgements from the Supreme Court bulk dataset).
 
-If you see an error, copy it back to Claude.
 
----
 
-## What comes next (not yet — after Phase 0 works)
-- **Phase 1** — `ingest/load_bulk.py`: download a slice of the official SC dataset → your DB.
-- **Phase 2** — `api/main.py`: search / fetch / similar endpoints over your DB.
-- **Phase 3** — point your existing `index.html` frontend at the API.
-- **Phase 4+** — Indian Kanoon enrichment, fresh-judgement scraper, AI "find similar".
 
-## Data source & credit
-Judgements come from the **Indian Supreme Court Judgments** open dataset
-(https://registry.opendata.aws/indian-supreme-court-judgments/), sourced from the
-official eCourts system, licensed CC-BY-4.0. Attribution: Vanga (2025), Dattam Labs,
-via the AWS Open Data Registry.
